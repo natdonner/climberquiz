@@ -1,0 +1,590 @@
+'use strict';
+const Alexa = require('ask-sdk');
+const Util = require('./util');
+const aplMainTemplate = require('./apl-main.json');
+/***********
+Data: Customize the data below as you please.
+***********/
+
+
+const SKILL_NAME = "Climber Quiz";
+const HELP_MESSAGE_BEFORE_START = "Answer five questions, and I will tell you what kind of climber you are. Are you ready to play?";
+const HELP_MESSAGE_AFTER_START = "Just respond with yes or no and I'll give you the result in the end.";
+const HELP_REPROMPT = "The type of climber you are will be revealed after you answer all my yes or no questions.";
+const STOP_MESSAGE = "Your climber type will be waiting for you next time.";
+const MISUNDERSTOOD_INSTRUCTIONS_ANSWER = "Please answer with either yes or no.";
+const HINT_TEXT = `To play again, just say "Alexa, open ${SKILL_NAME}"`
+
+
+// const BACKGROUND_IMAGE_URL = "https://919eb2b4-e6c6-4dc3-b5b4-fef2bd257381-us-east-1.s3.amazonaws.com/Media/default.jpg";
+const BACKGROUND_IMAGE_URL =  "default.jpg";
+// const BACKGROUND_GOODBYE_IMAGE_URL = "https://919eb2b4-e6c6-4dc3-b5b4-fef2bd257381-us-east-1.s3.amazonaws.com/Media/goodbye.jpg";
+const BACKGROUND_GOODBYE_IMAGE_URL = "goodbye.jpg";
+// const BACKGROUND_HELP_IMAGE_URL = "https://919eb2b4-e6c6-4dc3-b5b4-fef2bd257381-us-east-1.s3.amazonaws.com/Media/help.jpg";
+const BACKGROUND_HELP_IMAGE_URL = "help.jpg";
+
+const WELCOME_MESSAGE = "Hi! I can tell you what kind of climber you are. All you have to do is answer five questions with either yes or no. Are you ready to start?";
+const INITIAL_QUESTION_INTROS = [
+  "Great! Let's send it!",
+  "Let's get sendy!",
+  "Ok climb on."
+];
+const QUESTION_INTROS = [
+  "Okey Dokey",
+  "Alrighty!",
+  "Cool.",
+  "Of course.",
+  "I knew it.",
+  "Totally agree.",
+  "Dude, so true.",
+  "Yup, I agree."
+];
+const UNDECISIVE_RESPONSES = [
+  "I'll just choose for you.",
+  "I picked an answer for you.",
+  "Silence speaks a thousand words.",
+  "Cat got your tongue?",
+  "Moving on.",
+];
+const RESULT_MESSAGE = "Alright the results are in! You are "; // the name of the result is inserted here.
+const RESULT_MESSAGE_SHORT = "You are "; // the name of the result is inserted here.
+const PLAY_AGAIN_REQUEST = "That was it. Do you want to play again?";
+
+const resultList = {
+  result1: {
+    name: "a gym rat",
+    display_name: "Gym Rat",
+    audio_message: "Gym rats can be found in fluorescent lights, at most hours of the day. They escape the natural elements to clamber up plastic holds and love to tell you what gym they belong to.",
+    description: "You are a gym rat",
+    img: {
+      //largeImageUrl: "https://919eb2b4-e6c6-4dc3-b5b4-fef2bd257381-us-east-1.s3.amazonaws.com/Media/gym+rat.jpg"
+      largeImageUrl: "gym rat.jpg",
+    }
+  },
+  result2: {
+    name: "an ice climber",
+    display_name: "Ice Climber",
+    audio_message: "Ice ice baby. Sharp objects make you happy and you love a cool word like sublimation. Keep swinging baby.",
+    description: "You are an ice climber",
+    img: {
+      //largeImageUrl: "https://919eb2b4-e6c6-4dc3-b5b4-fef2bd257381-us-east-1.s3.amazonaws.com/Media/ice+climber.jpg"
+      largeImageUrl: "ice climber.jpg",
+    }
+  },
+  result3: {
+    name: "a trad climber",
+    display_name: "Trad Climber",
+    audio_message: "Yep, you're a trad climber! You love the jingling sound of cams dancing on your gear loops. One can find you running out the steep faces of high alpine walls. Might as well just call you trad dad.",
+    description: "You are a trad climber.",
+    img: {
+      //largeImageUrl: "https://919eb2b4-e6c6-4dc3-b5b4-fef2bd257381-us-east-1.s3.amazonaws.com/Media/trad+climber.jpg"
+      largeImageUrl: "trad climber.jpg",
+    }
+  },
+  result4: {
+    name: "a free solo climber",
+    display_name: "Free Solo Climber",
+    audio_message: "Watch out Alex Honnold! You're no stranger to heights and adrenaline. Free solo climbers are frequently seen lingering around Camp 4 in Yosemite Valley waiting for free food scraps to fuel their ropeless endeavors.",
+    description: "You are a free solo climber.",
+    img: {
+      //largeImageUrl: "https://919eb2b4-e6c6-4dc3-b5b4-fef2bd257381-us-east-1.s3.amazonaws.com/Media/free+soloer.jpg"
+      largeImageUrl: "free soloer.jpg",
+    }
+  },
+  result5: {
+    name: "a goat",
+    display_name: "Goat",
+    audio_message: "Either I'm a glitchy machine or you're just a goat. Baaaa! Nimble, curious, adventurous. The mountain goat scales steep rock faces and can brave freezing temps.",
+    description: "You are a goat!",
+    img: {
+      //largeImageUrl: "https://919eb2b4-e6c6-4dc3-b5b4-fef2bd257381-us-east-1.s3.amazonaws.com/Media/goat.jpg"
+      largeImageUrl: "goat.jpg",
+    }
+  }
+};
+
+const questions = [{
+    question: "Are you adventurous and active?",
+    questionDisplay: "Are you adventurous and active?",
+    //background:  "https://919eb2b4-e6c6-4dc3-b5b4-fef2bd257381-us-east-1.s3.amazonaws.com/Media/q1.jpg", 
+    background: "q1.jpg",
+    points: {
+      result1: 3,
+      result2: 5,
+      result3: 5,
+      result4: 5,
+      result5: 3
+    }
+  },
+  {
+    question: "Do you enjoy the cold weather?",
+    questionDisplay: "Do you enjoy the cold weather?",
+    //background: "https://919eb2b4-e6c6-4dc3-b5b4-fef2bd257381-us-east-1.s3.amazonaws.com/Media/q2.jpg", 
+    background: "q2.jpg",
+    points: {
+      result1: 0,
+      result2: 5,
+      result3: 1,
+      result4: 1,
+      result5: 3
+    }
+  },
+  {
+    question: "Are you an adrenalinde junkie?",
+    questionDisplay: "Do you enjoy a book more than a party?",
+    //background: "https://919eb2b4-e6c6-4dc3-b5b4-fef2bd257381-us-east-1.s3.amazonaws.com/Media/q3.jpg", 
+    background: "q3.jpg",
+    points: {
+      result1: 0,
+      result2: 5,
+      result3: 3,
+      result4: 5,
+      result5: 3
+    }
+  },
+  {
+    question: "Do you geek out on climbing gear?",
+    questionDisplay: "Do you geek out on climbing gear?",
+    //background: "https://919eb2b4-e6c6-4dc3-b5b4-fef2bd257381-us-east-1.s3.amazonaws.com/Media/q4.jpg", 
+    background: "q4.jpg",
+    points: {
+      result1: 1,
+      result2: 4,
+      result3: 5,
+      result4: 0,
+      result5: 0
+    }
+  },
+  {
+    question: "Do you love the word bro?",
+    questionDisplay: "Do you love the word bro?",
+    //background: "https://919eb2b4-e6c6-4dc3-b5b4-fef2bd257381-us-east-1.s3.amazonaws.com/Media/q5.jpg", 
+    background: "q5.jpg",
+    points: {
+      result1: 5,
+      result2: 0,
+      result3: 0,
+      result4: 1,
+      result5: 0
+    }
+  }
+];
+
+/***********
+Execution Code: Avoid editing the code below if you don't know JavaScript.
+***********/
+
+// Private methods (this is the actual code logic behind the app)
+
+
+
+const newSessionHandler = {
+  canHandle(handlerInput) {
+    const request = handlerInput.requestEnvelope.request;
+    const attributesManager = handlerInput.attributesManager;
+    const sessionAttributes = attributesManager.getSessionAttributes();
+    var isCurrentlyPlayingOrGettingResult = false;
+    if (sessionAttributes.state) {
+       isCurrentlyPlayingOrGettingResult = true;
+    }
+
+
+    return handlerInput.requestEnvelope.request.type === `LaunchRequest` || (!isCurrentlyPlayingOrGettingResult && request.type === 'IntentRequest' && (request.intent.name === 'AMAZON.YesIntent' || request.intent.name === 'AMAZON.NoIntent'));
+  },
+  handle(handlerInput) {
+
+    console.log('--------------------------------------- New session')
+    const request = handlerInput.requestEnvelope.request;
+    const attributesManager = handlerInput.attributesManager;
+    const sessionAttributes = attributesManager.getSessionAttributes();
+    if (handlerInput.requestEnvelope.request.type === `LaunchRequest`) {
+      _initializeApp(sessionAttributes);
+      return buildResponse(handlerInput, WELCOME_MESSAGE, WELCOME_MESSAGE, SKILL_NAME);
+    }
+    if (request.type === 'IntentRequest' && request.intent.name === 'AMAZON.YesIntent') {
+
+      sessionAttributes.state = states.QUIZMODE;
+
+      const systemSpeak = _nextQuestionOrResult(handlerInput);
+      return buildResponse(handlerInput, systemSpeak.prompt, systemSpeak.reprompt, SKILL_NAME, systemSpeak.background,systemSpeak.displayText);
+    }
+    if (request.type === 'IntentRequest' && request.intent.name === 'AMAZON.NoIntent') {
+      console.log('--------------------------------------- Exit session')
+      const attributesManager = handlerInput.attributesManager;
+      const sessionAttributes = attributesManager.getSessionAttributes();
+      sessionAttributes.state = '';
+      return buildResponse(handlerInput, STOP_MESSAGE, '', SKILL_NAME, BACKGROUND_GOODBYE_IMAGE_URL,STOP_MESSAGE);
+    }
+    if (request.type === 'IntentRequest' && request.intent.name === 'UndecisiveIntent') {
+      const outputSpeech = MISUNDERSTOOD_INSTRUCTIONS_ANSWER;
+      return buildResponse(handlerInput, outputSpeech, outputSpeech, SKILL_NAME, BACKGROUND_IMAGE_URL,"");
+    }
+  },
+};
+
+const nextQuestionIntent = (handlerInput, prependMessage) => {
+  const attributesManager = handlerInput.attributesManager;
+  const sessionAttributes = attributesManager.getSessionAttributes();
+  sessionAttributes.questionProgress++;
+  var currentQuestion = questions[sessionAttributes.questionProgress].question;
+  return {
+    prompt: `${prependMessage} ${_randomQuestionIntro(sessionAttributes)} ${currentQuestion}`,
+    reprompt: HELP_MESSAGE_AFTER_START,
+    displayText: questions[sessionAttributes.questionProgress].questionDisplay,
+    background: questions[sessionAttributes.questionProgress].background
+  };
+}
+
+const resultIntent = (handlerInput, prependMessage) => {
+  const attributesManager = handlerInput.attributesManager;
+  const sessionAttributes = attributesManager.getSessionAttributes();
+  const resultPoints = sessionAttributes.resultPoints;
+  const result = Object.keys(resultPoints).reduce((o, i) => resultPoints[o] > resultPoints[i] ? o : i);
+  const resultMessage = `${prependMessage} ${RESULT_MESSAGE} ${resultList[result].name}. ${resultList[result].audio_message}. ${PLAY_AGAIN_REQUEST}`;
+  return {
+    prompt: resultMessage,
+    reprompt: PLAY_AGAIN_REQUEST,
+    displayText: `${RESULT_MESSAGE_SHORT} ${resultList[result].name}`,
+    background: resultList[result].img.largeImageUrl
+  }
+
+  // this.emit(':askWithCard', resultMessage, PLAY_AGAIN_REQUEST, resultList[result].display_name, resultList[result].description, resultList[result].img);
+  //                        ^speechOutput  ^repromptSpeech     ^cardTitle                       ^cardContent                    ^imageObj
+}
+
+const RepeatIntentHandler = {
+  canHandle(handlerInput) {
+   return Alexa.getRequestType(handlerInput.requestEnvelope) ===   'IntentRequest' && Alexa.getIntentName(handlerInput.requestEnvelope) === 'AMAZON.RepeatIntent';
+   },
+handle(handlerInput) {
+    // Get the session attributes.
+    const sessionAttributes =   
+    handlerInput.attributesManager.getSessionAttributes(); 
+    console.log('Repeat');
+    console.log(sessionAttributes.lastPrompt);
+   return 	buildResponse (handlerInput, sessionAttributes.lastPrompt, sessionAttributes.lastReprompt, sessionAttributes.lastTitle, sessionAttributes.lastImage_url,  sessionAttributes.lastDisplayText, sessionAttributes.lastDisplay_type) 
+  }
+};
+	
+const _randomIndexOfArray = (array) => Math.floor(Math.random() * array.length);
+const _randomOfArray = (array) => array[_randomIndexOfArray(array)];
+const _adder = (a, b) => a + b;
+const _subtracter = (a, b) => a - b;
+
+// Handle user input and intents:
+
+const states = {
+  QUIZMODE: "_QUIZMODE",
+  RESULTMODE: "_RESULTMODE"
+}
+
+
+
+const quizModeHandler = {
+  canHandle(handlerInput) {
+
+    const attributesManager = handlerInput.attributesManager;
+    const sessionAttributes = attributesManager.getSessionAttributes();
+    var isCurrentlyPlaying = false;
+    if (sessionAttributes.state && sessionAttributes.state === states.QUIZMODE) {
+      isCurrentlyPlaying = true;
+    }
+
+    return isCurrentlyPlaying;
+  },
+  handle(handlerInput) {
+    console.log('---------------------------------------Quiz Mode')
+    const request = handlerInput.requestEnvelope.request;
+    const attributesManager = handlerInput.attributesManager;
+    const sessionAttributes = attributesManager.getSessionAttributes();
+    var prependMessage = '';
+    if (request.type === 'IntentRequest' && request.intent.name === 'AMAZON.NextIntent') {
+      const systemSpeak = nextQuestionIntent(handlerInput, prependMessage);
+      return buildResponse(handlerInput, systemSpeak.prompt, systemSpeak.reprompt, SKILL_NAME, systemSpeak.background,systemSpeak.displayText);
+    }
+
+    if (request.type === 'IntentRequest' && request.intent.name === 'AMAZON.YesIntent') {
+      _applyresultPoints(sessionAttributes, _adder);
+      sessionAttributes.state = states.QUIZMODE;
+      const systemSpeak = _nextQuestionOrResult(handlerInput);
+      return buildResponse(handlerInput, systemSpeak.prompt, systemSpeak.reprompt, SKILL_NAME, systemSpeak.background,systemSpeak.displayText);
+    }
+
+    if (request.type === 'IntentRequest' && request.intent.name === 'AMAZON.NoIntent') {
+      _applyresultPoints(sessionAttributes, _subtracter);
+      sessionAttributes.state = states.QUIZMODE;
+      const systemSpeak = _nextQuestionOrResult(handlerInput);
+      return buildResponse(handlerInput, systemSpeak.prompt, systemSpeak.reprompt, SKILL_NAME, systemSpeak.background,systemSpeak.displayText);
+    }
+
+    if (request.type === 'IntentRequest' && request.intent.name === 'UndecisiveIntent') {
+      Math.round(Math.random()) ? _applyresultPoints(sessionAttributes, _adder) : _applyresultPoints(sessionAttributes, _subtracter);
+      const systemSpeak = _nextQuestionOrResult(handlerInput, _randomOfArray(UNDECISIVE_RESPONSES));
+      return buildResponse(handlerInput, systemSpeak.prompt, systemSpeak.reprompt, SKILL_NAME, systemSpeak.background,systemSpeak.displayText);
+    }
+
+  if (request.type === 'IntentRequest' && request.intent.name === 'AMAZON.RepeatIntent') {
+        console.log('Repeat');
+    	console.log(sessionAttributes.lastPrompt);
+	   return 	buildResponse (handlerInput, sessionAttributes.lastPrompt, sessionAttributes.lastReprompt, sessionAttributes.lastTitle, sessionAttributes.lastImage_url,  sessionAttributes.lastDisplayText, sessionAttributes.lastDisplay_type) 
+	}
+    
+  
+  },
+};
+
+const resultModeHandler = {
+  canHandle(handlerInput) {
+    const request = handlerInput.requestEnvelope.request;
+    const attributesManager = handlerInput.attributesManager;
+    const sessionAttributes = attributesManager.getSessionAttributes();
+    var isCurrentlyPlaying = false;
+    if (sessionAttributes.state &&
+      sessionAttributes.state === states.QUIZMODE) {
+      isCurrentlyPlaying = true;
+    }
+
+    return !isCurrentlyPlaying && request.type === 'IntentRequest' && sessionAttributes.state === states.RESULTMODE;
+  },
+  handle(handlerInput) {
+    console.log('--------------------------------------- Result mode')
+    const request = handlerInput.requestEnvelope.request;
+    const attributesManager = handlerInput.attributesManager;
+    const sessionAttributes = attributesManager.getSessionAttributes();
+    
+    if (request.type === 'IntentRequest' && request.intent.name === 'AMAZON.YesIntent') {
+      _initializeApp(sessionAttributes);
+      sessionAttributes.state = states.QUIZMODE;
+      const systemSpeak = _nextQuestionOrResult(handlerInput);
+      return buildResponse(handlerInput, systemSpeak.prompt, systemSpeak.reprompt, SKILL_NAME, systemSpeak.background, systemSpeak.displayText);
+    }
+    if (request.type === 'IntentRequest' && request.intent.name === 'AMAZON.NoIntent') {
+      const attributesManager = handlerInput.attributesManager;
+      const sessionAttributes = attributesManager.getSessionAttributes();
+      sessionAttributes.state = '';
+      return buildResponse(handlerInput, STOP_MESSAGE, '', SKILL_NAME, BACKGROUND_GOODBYE_IMAGE_URL,STOP_MESSAGE);
+    
+    }
+    
+  if (request.type === 'IntentRequest' && request.intent.name === 'AMAZON.RepeatIntent') {
+        console.log('Repeat');
+    	console.log(sessionAttributes.lastPrompt);
+	   return 	buildResponse (handlerInput, sessionAttributes.lastPrompt, sessionAttributes.lastReprompt, sessionAttributes.lastTitle, sessionAttributes.lastImage_url,  sessionAttributes.lastDisplayText, sessionAttributes.lastDisplay_type) 
+	}
+    
+
+
+  },
+};
+
+
+const ExitHandler = {
+  canHandle(handlerInput) {
+    const request = handlerInput.requestEnvelope.request;
+    return request.type === 'IntentRequest' &&
+      (request.intent.name === 'AMAZON.CancelIntent' ||
+        request.intent.name === 'AMAZON.StopIntent');
+  },
+  handle(handlerInput) {
+    console.log('--------------------------------------- Exit session')
+    const attributesManager = handlerInput.attributesManager;
+    const sessionAttributes = attributesManager.getSessionAttributes();
+    sessionAttributes.state = '';
+    return buildResponse(handlerInput, STOP_MESSAGE, '', SKILL_NAME, BACKGROUND_GOODBYE_IMAGE_URL,STOP_MESSAGE);
+    //------------------------------------------------
+  },
+};
+
+const HelpIntentHandler = {
+  canHandle(handlerInput) {
+    const request = handlerInput.requestEnvelope.request;
+    return request.type === 'IntentRequest' &&
+      request.intent.name === 'AMAZON.HelpIntent';
+  },
+  handle(handlerInput) {
+    console.log('--------------------------------------- Help')
+    const attributesManager = handlerInput.attributesManager;
+    var speechOutput = '';
+    const sessionAttributes = attributesManager.getSessionAttributes();
+    if (sessionAttributes.state === states.QUIZMODE) {
+       speechOutput = HELP_MESSAGE_AFTER_START;
+    } else {
+       speechOutput = HELP_MESSAGE_BEFORE_START;
+    }
+    const reprompt = HELP_REPROMPT;
+    return buildResponse(handlerInput, speechOutput, reprompt, SKILL_NAME, BACKGROUND_HELP_IMAGE_URL);
+  },
+};
+const UnhandledHandler = {
+  canHandle() {
+    return true;
+  },
+  handle(handlerInput) {
+    console.log('---------------------------------------Unhandled')
+    const outputSpeech = MISUNDERSTOOD_INSTRUCTIONS_ANSWER;
+    return buildResponse(handlerInput, outputSpeech, outputSpeech, SKILL_NAME);
+  },
+};
+
+const SessionEndedRequestHandler = {
+  canHandle(handlerInput) {
+    console.log("Inside SessionEndedRequestHandler");
+    return handlerInput.requestEnvelope.request.type === 'SessionEndedRequest';
+  },
+  handle(handlerInput) {
+    console.log(`Session ended with reason: ${JSON.stringify(handlerInput.requestEnvelope)}`);
+    return handlerInput.responseBuilder.getResponse();
+  },
+};
+
+// Skill brain
+
+const _initializeApp = handler => {
+  // Set the progress to -1 one in the beginning
+  handler.questionProgress = -1;
+  // Assign 0 points to each animal
+  var initialPoints = {};
+  Object.keys(resultList).forEach(result => initialPoints[result] = 0);
+  handler.resultPoints = initialPoints;
+};
+
+const _nextQuestionOrResult = (handlerInput, prependMessage = '') => {
+  const attributesManager = handlerInput.attributesManager;
+  const sessionAttributes = attributesManager.getSessionAttributes();
+  if (sessionAttributes.questionProgress >= (questions.length - 1)) {
+
+    sessionAttributes.state = states.RESULTMODE;
+    return resultIntent(handlerInput, prependMessage)
+
+
+  } else {
+    return nextQuestionIntent(handlerInput, prependMessage);
+  }
+};
+
+const _applyresultPoints = (handler, calculate) => {
+  const currentPoints = handler.resultPoints;
+  const pointsToAdd = questions[handler.questionProgress].points;
+
+  handler.resultPoints = Object.keys(currentPoints).reduce((newPoints, result) => {
+    newPoints[result] = calculate(currentPoints[result], pointsToAdd[result]);
+    return newPoints;
+  }, currentPoints);
+};
+
+const _randomQuestionIntro = handler => {
+  if (handler.questionProgress === 0) {
+    // return random initial question intro if it's the first question:
+    return _randomOfArray(INITIAL_QUESTION_INTROS);
+  } else {
+    // Assign all question intros to remainingQuestionIntros on the first execution:
+    var remainingQuestionIntros = remainingQuestionIntros || QUESTION_INTROS;
+    // randomQuestion will return 0 if the remainingQuestionIntros are empty:
+    let randomQuestion = remainingQuestionIntros.splice(_randomIndexOfArray(remainingQuestionIntros), 1);
+    // Remove random Question from rameining question intros and return the removed question. If the remainingQuestions are empty return the first question:
+    return randomQuestion ? randomQuestion : QUESTION_INTROS[0];
+  }
+};
+
+// Utilities
+
+
+let buildResponse = (handlerInput, prompt, reprompt, title = SKILL_NAME, image_url = BACKGROUND_IMAGE_URL,  displayText = prompt.replace(/(<([^>]+)>)/gi, ""), display_type = "BodyTemplate7" ) => {
+  console.log(title);
+  	const sessionAttributes = handlerInput.attributesManager.getSessionAttributes(); 
+	sessionAttributes.lastPrompt = prompt;
+	sessionAttributes.lastReprompt = reprompt;
+	sessionAttributes.lastTitle = title;
+	sessionAttributes.lastImage_url = image_url;
+	sessionAttributes.lastDisplayText = displayText;
+	sessionAttributes.lastDisplay_type = display_type;
+  if (reprompt) {
+    handlerInput.responseBuilder.reprompt(reprompt);
+  } else {
+    handlerInput.responseBuilder.withShouldEndSession(true);
+  }
+   var response ;
+  if (Alexa.getSupportedInterfaces(handlerInput.requestEnvelope)['Alexa.Presentation.APL']) {
+     response = getDisplay(handlerInput, title,  prompt, image_url, display_type).responseBuilder;
+  } else {
+     response = handlerInput.responseBuilder.speak(prompt)
+            
+  }
+  return response.withSimpleCard(title, displayText).getResponse();
+}
+function supportsDisplay(handlerInput) {
+  var hasDisplay =
+    handlerInput.requestEnvelope.context &&
+    handlerInput.requestEnvelope.context.System &&
+    handlerInput.requestEnvelope.context.System.device &&
+    handlerInput.requestEnvelope.context.System.device.supportedInterfaces &&
+    handlerInput.requestEnvelope.context.System.device.supportedInterfaces.Display
+  return hasDisplay;
+}
+
+
+function getDisplay(handlerInput, title, displayText, image_url, display_type){
+	if (!image_url.includes('https://')) {
+		image_url=Util.getS3PreSignedUrl("Media/"+image_url);
+	}
+	
+
+	console.log("the display type is => " + display_type);
+    console.log(image_url);
+    var VISUAL_TOKEN = 'showthis';
+            // Create Render Directive
+            
+            handlerInput.responseBuilder.addDirective({
+                type: 'Alexa.Presentation.APL.RenderDocument',
+                datasources: {
+                        "headlineTemplateData": {
+                            "type": "object",
+                            "objectId": "headlineSample",
+                            "properties": {
+                                "backgroundImage": {
+                                    "contentDescription": null,
+                                    "smallSourceUrl": null,
+                                    "largeSourceUrl": null,
+                                    "sources": [
+                                        {
+                                            "url": image_url,
+                                            "size": "large"
+                                        }
+                                    ]
+                                },
+                                "textContent": {
+                                    "primaryText": {
+                                        "type": "PlainText",
+                                        "text": displayText.replace(/(<([^>]+)>)/gi, "")
+                                    }
+                                },
+
+                                "hintText": HINT_TEXT,
+                                "welcomeSpeechSSML": `<speak>${displayText}</speak>`
+                            },
+                            "transformers": [
+                                {
+                                    "inputPath": "welcomeSpeechSSML",
+                                    "transformer": "ssmlToSpeech",
+                                    "outputName": "welcomeSpeech"
+                                }
+                            ]
+                        }
+                    },
+                token: VISUAL_TOKEN,
+                document: aplMainTemplate
+            });
+            
+	
+	return handlerInput;
+}
+
+// Init
+
+  const skillBuilder = Alexa.SkillBuilders.custom();
+  exports.handler = skillBuilder
+    .addRequestHandlers(
+      SessionEndedRequestHandler, HelpIntentHandler, ExitHandler, newSessionHandler, quizModeHandler, resultModeHandler, RepeatIntentHandler,  UnhandledHandler
+    )
+    //.addErrorHandlers(ErrorHandler)
+    .lambda();
